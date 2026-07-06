@@ -1,0 +1,51 @@
+// prisma/schema.prisma — Daily Project Report System
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("EMPLOYEE") // ADMIN | EMPLOYEE
+  entries     ReportEntry[]
+  notifications Notification[] @relation("notifRecipient")
+  sentNotifs  Notification[] @relation("notifSender")
+  createdAt DateTime @default(now())
+}
+
+model ReportEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  month     String   // "1405-04"
+  day       Int      // 1..31
+  enterTime String?
+  leaveTime String?
+  task      String?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, month, day])
+  @@index([month])
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  userId      String   // recipient (employee)
+  fromAdminId String   // sender (admin)
+  title       String
+  details     String
+  dueDate     String?
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  recipient   User     @relation("notifRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  sender      User     @relation("notifSender", fields: [fromAdminId], references: [id], onDelete: Cascade)
+}
