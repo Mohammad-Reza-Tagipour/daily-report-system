@@ -9,6 +9,7 @@ import Link from "next/link";
 import {
   ChevronRight, ChevronLeft, Plus, LogOut, Calendar, UserPlus,
   Loader2, Users, Save, FileText, AlertCircle, Bell, Send, ShieldCheck, Lock,
+  Trash2, UserCheck, RotateCcw, Clock, UserX,
 } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { GlassButton } from "@/components/ui/glass-button";
@@ -20,8 +21,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import {
-  useEmployees, useAllUsers, useMonthEntries, useAllNotifications, useEntryCount,
-  upsertEntry, addUser, toggleUserRole, createNotification,
+  useEmployees, useAllUsers, usePendingUsers, useDeletedUsers, useMonthEntries, useAllNotifications, useEntryCount,
+  upsertEntry, addUser, toggleUserRole, approveUser, restoreUser, deleteUser, createNotification,
 } from "@/lib/useStore";
 import { type User, type ReportEntry } from "@/lib/useStore";
 import { isMainAdmin } from "@/lib/constants";
@@ -208,6 +209,8 @@ function CalendarTab({ month, router }: { month: JalaliMonthKey; router: ReturnT
 
 function UsersTab({ currentUserId, onToggleRole }: { currentUserId: string; onToggleRole: (userId: string) => void }) {
   const allUsers = useAllUsers();
+  const pendingUsers = usePendingUsers();
+  const deletedUsers = useDeletedUsers();
   const currentUser = allUsers.find(u => u.id === currentUserId);
   const viewerIsMainAdmin = currentUser ? isMainAdmin(currentUser.email) : false;
 
@@ -221,7 +224,30 @@ function UsersTab({ currentUserId, onToggleRole }: { currentUserId: string; onTo
         </p>
       </div>
 
-      <div className="grid gap-3">
+      {/* Pending approvals */}
+      {pendingUsers.length > 0 && (
+        <div className="mb-6">
+          <h2 className="mb-3 flex items-center gap-2 text-lg font-bold text-amber-600">
+            <Clock className="h-5 w-5" /> در انتظار تأیید ({toPersianDigits(pendingUsers.length)})
+          </h2>
+          <div className="grid gap-3">
+            {pendingUsers.map(u => (
+              <PendingUserRow
+                key={u.id}
+                user={u}
+                onApprove={async () => { const res = await approveUser(u.id); if (!res.ok) { toast.error("خطا", { description: res.error }); } }}
+                onDelete={async () => { const res = await deleteUser(u.id); if (!res.ok) { toast.error("خطا", { description: res.error }); } else { toast.success("کاربر حذف شد"); } }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Active users */}
+      <h2 className="mb-3 flex items-center gap-2 text-lg font-bold">
+        <Users className="h-5 w-5 text-primary" /> کاربران فعال ({toPersianDigits(allUsers.length)})
+      </h2>
+      <div className="grid gap-3 mb-6">
         {allUsers.map(u => (
           <UserRow
             key={u.id}
@@ -229,38 +255,127 @@ function UsersTab({ currentUserId, onToggleRole }: { currentUserId: string; onTo
             isSelf={u.id === currentUserId}
             viewerIsMainAdmin={viewerIsMainAdmin}
             onToggle={() => onToggleRole(u.id)}
+            onDelete={async () => {
+              if (!confirm(`آیا از حذف «${u.name}» مطمئن هستید؟ داده‌های او حفظ می‌شود.`)) return;
+              const res = await deleteUser(u.id);
+              if (!res.ok) { toast.error("خطا", { description: res.error }); }
+              else { toast.success("کاربر حذف شد"); }
+            }}
           />
         ))}
       </div>
+
+      {/* Deleted users */}
+      {deletedUsers.length > 0 && (
+        <div className="mb-6">
+          <h2 className="mb-3 flex items-center gap-2 text-lg font-bold text-muted-foreground">
+            <UserX className="h-5 w-5" /> کاربران حذف‌شده ({toPersianDigits(deletedUsers.length)})
+          </h2>
+          <p className="mb-3 text-xs text-muted-foreground">داده‌های این کاربران حفظ شده است. می‌توانید آن‌ها را بازگردانید.</p>
+          <div className="grid gap-3">
+            {deletedUsers.map(u => (
+              <DeletedUserRow
+                key={u.id}
+                user={u}
+                onRestore={async () => { const res = await restoreUser(u.id); if (!res.ok) { toast.error("خطا", { description: res.error }); } else { toast.success("کاربر بازگردانده شد"); } }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </>
   );
 }
 
-function UserRow({ user, isSelf, viewerIsMainAdmin, onToggle }: {
+function PendingUserRow({ user, onApprove, onDelete }: {
+  user: User;
+  onApprove: () => Promise<void>;
+  onDelete: () => Promise<void>;
+}) {
+  const [loading, setLoading] = useState(false);
+  const approve = async () => { setLoading(true); try { await onApprove(); toast.success(`${user.name} تأیید شد`); } finally { setLoading(false); } };
+  const del = async () => { setLoading(true); try { await onDelete(); } finally { setLoading(false); } };
+
+  return (
+    <GlassCard className="flex items-center justify-between border-amber-500/30 bg-amber-500/5 p-4">
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/15 text-amber-600">
+          <Clock className="h-5 w-5" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold">{user.name}</p>
+          <p className="text-[11px] text-muted-foreground" dir="ltr">{user.email}</p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={approve}
+          disabled={loading}
+          className="flex items-center gap-1 rounded-xl bg-emerald-500/15 px-3 py-1.5 text-xs font-medium text-emerald-600 transition hover:bg-emerald-500/25"
+        >
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserCheck className="h-4 w-4" />}
+          تأیید
+        </button>
+        <button
+          onClick={del}
+          disabled={loading}
+          className="rounded-xl border border-rose-500/30 px-3 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-500/10"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+    </GlassCard>
+  );
+}
+
+function DeletedUserRow({ user, onRestore }: {
+  user: User;
+  onRestore: () => Promise<void>;
+}) {
+  const [loading, setLoading] = useState(false);
+  const restore = async () => { setLoading(true); try { await onRestore(); } finally { setLoading(false); } };
+
+  return (
+    <GlassCard className="flex items-center justify-between opacity-60 p-4">
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-foreground/5 text-muted-foreground">
+          <UserX className="h-5 w-5" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold">{user.name}</p>
+          <p className="text-[11px] text-muted-foreground" dir="ltr">{user.email}</p>
+        </div>
+      </div>
+      <button
+        onClick={restore}
+        disabled={loading}
+        className="flex items-center gap-1 rounded-xl border border-primary/30 px-3 py-1.5 text-xs font-medium text-primary transition hover:bg-primary/10"
+      >
+        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+        بازگردانی
+      </button>
+    </GlassCard>
+  );
+}
+
+function UserRow({ user, isSelf, viewerIsMainAdmin, onToggle, onDelete }: {
   user: User;
   isSelf: boolean;
   viewerIsMainAdmin: boolean;
   onToggle: () => void;
+  onDelete: () => Promise<void>;
 }) {
   const entryCount = useEntryCount(user.id);
   const isAdmin = user.role === "ADMIN";
   const mainAdmin = isMainAdmin(user.email);
 
-  // Determine what action is available:
-  // - Main admin: never changeable
-  // - Other admins: only the main admin can demote them
-  // - Employees: any admin can promote them
   let actionButton: React.ReactNode;
   if (mainAdmin) {
     actionButton = <span className="text-[10px] text-muted-foreground" title="نقش مدیر اصلی ثابت است">غیرقابل تغییر</span>;
   } else if (isAdmin) {
-    // Can the viewer demote this admin?
     if (viewerIsMainAdmin) {
       actionButton = (
-        <button
-          onClick={onToggle}
-          className="rounded-xl border border-rose-500/30 px-3 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-500/10 dark:text-rose-400"
-        >
+        <button onClick={onToggle} className="rounded-xl border border-rose-500/30 px-3 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-500/10 dark:text-rose-400">
           تنزل به کارمند
         </button>
       );
@@ -268,16 +383,15 @@ function UserRow({ user, isSelf, viewerIsMainAdmin, onToggle }: {
       actionButton = <span className="text-[10px] text-muted-foreground" title="فقط مدیر اصلی می‌تواند تنزل دهد">غیرقابل تنزل</span>;
     }
   } else {
-    // Employee — any admin can promote.
     actionButton = (
-      <button
-        onClick={onToggle}
-        className="rounded-xl bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition hover:bg-primary/90"
-      >
+      <button onClick={onToggle} className="rounded-xl bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition hover:bg-primary/90">
         تبدیل به مدیر
       </button>
     );
   }
+
+  // Delete button — can't delete main admin or yourself.
+  const canDelete = !mainAdmin && !isSelf;
 
   return (
     <GlassCard className="flex items-center justify-between p-4">
@@ -295,10 +409,9 @@ function UserRow({ user, isSelf, viewerIsMainAdmin, onToggle }: {
       </div>
       <div className="flex items-center gap-3">
         <div className="hidden text-left sm:block">
-          <p className="text-[10px] text-muted-foreground">گزارش‌های ثبت‌شده</p>
+          <p className="text-[10px] text-muted-foreground">گزارش‌ها</p>
           <p className="text-sm font-bold tabular-nums">{toPersianDigits(entryCount)}</p>
         </div>
-        {/* Role badge */}
         {mainAdmin ? (
           <span className="rounded-lg bg-primary px-2.5 py-1 text-xs font-bold text-primary-foreground">مدیر اصلی</span>
         ) : isAdmin ? (
@@ -307,6 +420,15 @@ function UserRow({ user, isSelf, viewerIsMainAdmin, onToggle }: {
           <span className="rounded-lg bg-foreground/5 px-2.5 py-1 text-xs font-medium text-foreground/60">کارمند</span>
         )}
         {actionButton}
+        {canDelete && (
+          <button
+            onClick={onDelete}
+            className="rounded-xl border border-rose-500/20 p-2 text-rose-500 transition hover:bg-rose-500/10"
+            title="حذف کاربر"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
       </div>
     </GlassCard>
   );

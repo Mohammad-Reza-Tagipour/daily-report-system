@@ -80,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { ok: true as const, user: data.user };
   }, []);
 
-  const signup = useCallback(async (input: { name: string; email: string; password: string }) => {
+  const signup = useCallback(async (input: { name: string; email: string; password: string }): Promise<{ ok: true; pending: boolean; user: User | null } | { ok: false; error: string }> => {
     const res = await fetch("/api/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -90,8 +90,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!res.ok || !data.ok) {
       return { ok: false as const, error: data.error || "خطا" };
     }
+    // If the new user is pending approval, don't set the session.
+    if (data.pending) {
+      return { ok: true as const, pending: true, user: null };
+    }
+    // Main admin auto-logged-in.
     setUser(data.user);
-    return { ok: true as const, user: data.user };
+    return { ok: true as const, pending: false, user: data.user };
   }, []);
 
   const addEmployee = useCallback(async (input: { name: string; email: string }) => {

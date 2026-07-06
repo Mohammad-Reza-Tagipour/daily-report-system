@@ -12,21 +12,21 @@ async function main() {
   await db.reportEntry.deleteMany();
   await db.user.deleteMany();
 
-  // Create users.
-  const admin = await db.user.create({
-    data: { name: "مدیر سیستم", email: "admin@zai.dev", password: bcrypt.hashSync("admin123", 10), role: "ADMIN" },
+  // Create users (all APPROVED by default).
+  await db.user.create({
+    data: { name: "مدیر سیستم", email: "admin@zai.dev", password: bcrypt.hashSync("admin123", 10), role: "ADMIN", status: "APPROVED" },
   });
-  const ali = await db.user.create({
-    data: { name: "علی رضایی", email: "ali@zai.dev", password: bcrypt.hashSync("ali123", 10), role: "EMPLOYEE" },
+  await db.user.create({
+    data: { name: "علی رضایی", email: "ali@zai.dev", password: bcrypt.hashSync("ali123", 10), role: "EMPLOYEE", status: "APPROVED" },
   });
-  const sara = await db.user.create({
-    data: { name: "سارا محمدی", email: "sara@zai.dev", password: bcrypt.hashSync("sara123", 10), role: "EMPLOYEE" },
+  await db.user.create({
+    data: { name: "سارا محمدی", email: "sara@zai.dev", password: bcrypt.hashSync("sara123", 10), role: "EMPLOYEE", status: "APPROVED" },
   });
-  const reza = await db.user.create({
-    data: { name: "رضا کریمی", email: "reza@zai.dev", password: bcrypt.hashSync("reza123", 10), role: "EMPLOYEE" },
+  await db.user.create({
+    data: { name: "رضا کریمی", email: "reza@zai.dev", password: bcrypt.hashSync("reza123", 10), role: "EMPLOYEE", status: "APPROVED" },
   });
 
-  console.log("Users created:");
+  console.log("Users created (all APPROVED):");
   console.log("  ADMIN:    admin@zai.dev / admin123");
   console.log("  EMPLOYEE: ali@zai.dev / ali123");
   console.log("  EMPLOYEE: sara@zai.dev / sara123");

@@ -28,8 +28,14 @@ export default function SignupPage() {
     try {
       const res = await signup({ name, email, password });
       if (!res.ok) { toast.error("خطا", { description: res.error }); return; }
-      toast.success("حساب ساخته شد");
-      router.push(res.user.role === "ADMIN" ? "/dashboard" : "/report");
+      if (res.pending) {
+        // Pending approval — show message and redirect to login.
+        toast.success("حساب ساخته شد", { description: "بعد از تأیید مدیر می‌توانید وارد شوید." });
+        setTimeout(() => router.push("/login"), 2000);
+      } else if (res.user) {
+        toast.success("حساب ساخته شد");
+        router.push(res.user.role === "ADMIN" ? "/dashboard" : "/report");
+      }
     } finally { setLoading(false); }
   };
 

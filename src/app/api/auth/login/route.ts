@@ -1,7 +1,7 @@
 // app/api/auth/login/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { setSession, verifyPassword, isMainAdmin } from "@/lib/session";
+import { setSession, verifyPassword } from "@/lib/session";
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,6 +13,19 @@ export async function POST(req: NextRequest) {
     const user = await db.user.findUnique({ where: { email: email.toLowerCase().trim() } });
     if (!user || !verifyPassword(password, user.password)) {
       return NextResponse.json({ error: "ایمیل یا گذرواژه اشتباه است" }, { status: 401 });
+    }
+
+    // Block login for non-approved users.
+    if (user.status === "PENDING") {
+      return NextResponse.json({
+        error: "حساب شما هنوز توسط مدیر تأیید نشده است. لطفاً بعداً تلاش کنید.",
+      }, { status: 403 });
+    }
+
+    if (user.status === "DELETED") {
+      return NextResponse.json({
+        error: "این حساب حذف شده است. با مدیر تماس بگیرید.",
+      }, { status: 403 });
     }
 
     await setSession(user.id);

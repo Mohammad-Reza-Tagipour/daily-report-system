@@ -107,6 +107,48 @@ export async function toggleUserRole(userId: string): Promise<{ ok: true } | { o
   }
 }
 
+export async function approveUser(userId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await apiFetch("/api/users", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, action: "APPROVE" }),
+    });
+    bump();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
+export async function restoreUser(userId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await apiFetch("/api/users", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, action: "RESTORE" }),
+    });
+    bump();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
+export async function deleteUser(userId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await apiFetch("/api/users", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+    });
+    bump();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
 export async function createNotification(input: {
   userId: string; title: string; details: string; dueDate?: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -163,7 +205,17 @@ export function useEmployees(): User[] {
 }
 
 export function useAllUsers(): User[] {
-  const users = useApiFetch<User>("/api/users");
+  const users = useApiFetch<User>("/api/users?status=APPROVED");
+  return users || [];
+}
+
+export function usePendingUsers(): User[] {
+  const users = useApiFetch<User>("/api/users?status=PENDING");
+  return users || [];
+}
+
+export function useDeletedUsers(): User[] {
+  const users = useApiFetch<User>("/api/users?status=DELETED");
   return users || [];
 }
 
