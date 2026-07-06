@@ -45,3 +45,6 @@ skills/
 db/
 *.db
 
+
+.vercel
+.env*
