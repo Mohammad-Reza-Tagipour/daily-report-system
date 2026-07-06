@@ -6,7 +6,7 @@ import { Providers } from "@/components/shared/Providers";
 export const metadata: Metadata = {
   title: "گزارش روزانه پروژه | Daily Project Report System",
   description: "سامانه‌ی گزارش روزانه پروژه با تقویم شمسی و طراحی گلسمورفیسم.",
-  icons: { icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg" },
+  icons: { icon: "/logo.svg", shortcut: "/logo.svg", apple: "/logo.svg" },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

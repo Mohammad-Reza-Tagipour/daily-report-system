@@ -1,0 +1,11 @@
+{
+  "remoteName": "origin",
+  "projects": [
+    {
+      "id": "prj_gkzoUcxhh69Oe0eQxn1hAiOgMMbM",
+      "name": "daily-report-system",
+      "directory": ".",
+      "orgId": "team_qtnqpnXt7o0y2pbsUysGGrRB"
+    }
+  ]
+}

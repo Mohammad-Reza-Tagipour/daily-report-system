@@ -7,7 +7,7 @@ import { Suspense, useEffect, useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
-  ChevronRight, ChevronLeft, Plus, LogOut, Sparkles, Calendar, UserPlus,
+  ChevronRight, ChevronLeft, Plus, LogOut, Calendar, UserPlus,
   Loader2, Users, Save, FileText, AlertCircle, Bell, Send, ShieldCheck, Lock,
 } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
@@ -90,6 +90,8 @@ function DashboardContent({ user, onLogout, onAddEmployee, onRefreshUser }: {
 
       <footer className="mt-auto px-4 pb-5 pt-2 text-center text-xs text-muted-foreground">
         سامانه‌ی گزارش روزانه · {toPersianDigits(new Date().getFullYear())}
+        <br />
+        <span className="mt-1 inline-block">ساخته‌شده توسط <span className="font-semibold text-foreground/80">Mohammad Reza Tagipour</span></span>
       </footer>
     </div>
   );
@@ -207,7 +209,7 @@ function CalendarTab({ month, router }: { month: JalaliMonthKey; router: ReturnT
 function UsersTab({ currentUserId, onToggleRole }: { currentUserId: string; onToggleRole: (userId: string) => void }) {
   const allUsers = useAllUsers();
   const currentUser = allUsers.find(u => u.id === currentUserId);
-  const viewerIsMainAdmin = currentUser ? isMainAdmin(currentUser) : false;
+  const viewerIsMainAdmin = currentUser ? isMainAdmin(currentUser.email) : false;
 
   return (
     <>
@@ -242,7 +244,7 @@ function UserRow({ user, isSelf, viewerIsMainAdmin, onToggle }: {
 }) {
   const entryCount = useEntryCount(user.id);
   const isAdmin = user.role === "ADMIN";
-  const mainAdmin = isMainAdmin(user);
+  const mainAdmin = isMainAdmin(user.email);
 
   // Determine what action is available:
   // - Main admin: never changeable
@@ -419,7 +421,7 @@ function Topbar({ userName, onLogout }: { userName: string; onLogout: () => void
     <header className="sticky top-0 z-30 px-4 pt-4">
       <div className="glass glass-border mx-auto flex h-16 max-w-[1400px] items-center justify-between rounded-2xl px-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary"><Sparkles className="h-5 w-5" /></div>
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 overflow-hidden"><img src="/logo.svg" alt="لوگو" className="h-7 w-7" /></div>
           <div className="leading-tight"><p className="text-sm font-bold tracking-tight">داشبورد مدیر</p><p className="text-[10px] text-muted-foreground">گزارش روزانه</p></div>
         </Link>
         <div className="flex items-center gap-2">

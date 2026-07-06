@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowLeft, Sparkles, Calendar, ShieldCheck, UserPlus, Moon, Sun, Lock, Users, Save, Chrome, LogOut, UserCircle } from "lucide-react";
+import { ArrowLeft, Calendar, ShieldCheck, UserPlus, Moon, Sun, Lock, Users, Save, Chrome, LogOut, UserCircle } from "lucide-react";
 import { GlassCard, GlassCardHeader, GlassCardTitle, GlassCardContent, GlassCardDescription } from "@/components/ui/glass-card";
 import { GlassButton } from "@/components/ui/glass-button";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
@@ -43,7 +43,7 @@ export default function Home() {
       <header className="relative z-10 px-4 pt-5">
         <div className="glass glass-border mx-auto flex h-16 max-w-6xl items-center justify-between rounded-2xl px-4 sm:px-6">
           <Link href="/" className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary"><Sparkles className="h-5 w-5" /></div>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 overflow-hidden"><img src="/logo.svg" alt="لوگو" className="h-7 w-7" /></div>
             <div className="leading-tight"><p className="text-sm font-bold tracking-tight">گزارش روزانه پروژه</p><p className="text-[10px] text-muted-foreground">Daily Project Report System</p></div>
           </Link>
 
@@ -206,7 +206,11 @@ export default function Home() {
         </GlassCard>
       </section>
 
-      <footer className="relative z-10 px-4 pb-8 pt-4 text-center text-xs text-muted-foreground">سامانه‌ی گزارش روزانه پروژه · {toPersianDigits(now.getFullYear())}</footer>
+      <footer className="relative z-10 px-4 pb-8 pt-4 text-center text-xs text-muted-foreground">
+        سامانه‌ی گزارش روزانه پروژه · {toPersianDigits(now.getFullYear())}
+        <br />
+        <span className="mt-1 inline-block">ساخته‌شده توسط <span className="font-semibold text-foreground/80">Mohammad Reza Tagipour</span></span>
+      </footer>
     </main>
   );
 }

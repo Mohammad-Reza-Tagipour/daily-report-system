@@ -8,7 +8,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
-  ChevronRight, ChevronLeft, LogOut, Sparkles, Calendar, Loader2,
+  ChevronRight, ChevronLeft, LogOut, Calendar, Loader2,
   Save, AlertCircle, Lock, User, Bell, CheckCircle2, Clock,
 } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
@@ -91,7 +91,7 @@ function ReportContent({ user, forbidden, onLogout }: {
       <header className="sticky top-0 z-30 px-4 pt-4">
         <div className="glass glass-border mx-auto flex h-16 max-w-5xl items-center justify-between rounded-2xl px-4 sm:px-6">
           <Link href="/" className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary"><Sparkles className="h-5 w-5" /></div>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 overflow-hidden"><img src="/logo.svg" alt="لوگو" className="h-7 w-7" /></div>
             <div className="leading-tight"><p className="text-sm font-bold tracking-tight">گزارش روزانه من</p><p className="text-[10px] text-muted-foreground">{user.name}</p></div>
           </Link>
           <div className="flex items-center gap-2">
@@ -182,7 +182,11 @@ function ReportContent({ user, forbidden, onLogout }: {
           </div>
         </GlassCard>
       </motion.main>
-      <footer className="mt-auto px-4 pb-5 pt-2 text-center text-xs text-muted-foreground">سامانه‌ی گزارش روزانه · {toPersianDigits(new Date().getFullYear())}</footer>
+      <footer className="mt-auto px-4 pb-5 pt-2 text-center text-xs text-muted-foreground">
+        سامانه‌ی گزارش روزانه · {toPersianDigits(new Date().getFullYear())}
+        <br />
+        <span className="mt-1 inline-block">ساخته‌شده توسط <span className="font-semibold text-foreground/80">Mohammad Reza Tagipour</span></span>
+      </footer>
     </div>
   );
 }

@@ -2,6 +2,9 @@
 
 export const MAIN_ADMIN_EMAIL = "admin@zai.dev";
 
-export function isMainAdmin(email: string): boolean {
+export function isMainAdmin(email: string | null | undefined): boolean {
+  if (!email || typeof email !== "string") return false;
   return email.trim().toLowerCase() === MAIN_ADMIN_EMAIL;
 }
+
+export const CREATOR_NAME = "Mohammad Reza Tagipour";
