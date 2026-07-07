@@ -35,6 +35,50 @@ export type Notification = {
   sender?: { name: string };
 };
 
+// ---------- Leave Request types ----------
+export type LeaveRequest = {
+  id: string;
+  userId: string;
+  startDate: string;
+  endDate: string;
+  reason: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  adminNote?: string | null;
+  createdAt: string;
+  user?: { id: string; name: string; email: string };
+};
+
+// ---------- Announcement types ----------
+export type Announcement = {
+  id: string;
+  title: string;
+  body: string;
+  createdAt: string;
+  adminName: string;
+  read: boolean;
+  readCount: number;
+};
+
+// ---------- Direct Message types ----------
+export type Conversation = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  lastMessage: string | null;
+  lastMessageTime: string | null;
+  unreadCount: number;
+};
+
+export type DirectMessage = {
+  id: string;
+  senderId: string;
+  recipientId: string;
+  body: string;
+  read: boolean;
+  createdAt: string;
+};
+
 // ---------- Global refresh mechanism ----------
 const subscribers = new Set<() => void>();
 let version = 0;
@@ -172,6 +216,81 @@ export async function markNotificationRead(notifId: string): Promise<void> {
   bump();
 }
 
+// ---------- Leave Request API ----------
+
+export async function createLeaveRequest(input: {
+  startDate: string; endDate: string; reason: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await apiFetch("/api/leaves", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    bump();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
+export async function resolveLeaveRequest(leaveId: string, action: "APPROVE" | "REJECT", adminNote?: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await apiFetch("/api/leaves", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ leaveId, action, adminNote }),
+    });
+    bump();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
+// ---------- Announcement API ----------
+
+export async function createAnnouncement(input: {
+  title: string; body: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await apiFetch("/api/announcements", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    bump();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
+export async function markAnnouncementRead(announcementId: string): Promise<void> {
+  await apiFetch("/api/announcements", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ announcementId }),
+  });
+  bump();
+}
+
+// ---------- Direct Message API ----------
+
+export async function sendMessage(recipientId: string, body: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await apiFetch("/api/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recipientId, body }),
+    });
+    bump();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
 // ---------- Read hooks (with loading states) ----------
 
 // Generic hook that fetches data, re-fetches on bump(), and tracks loading state.
@@ -263,4 +382,37 @@ export function useAllNotifications(): { notifications: Notification[]; loading:
 export function useEntryCount(userId: string): number {
   const { users } = useAllUsers();
   return users.find((x) => x.id === userId)?.entryCount || 0;
+}
+
+// ---------- Leave hooks ----------
+
+export function useUserLeaves(userId: string | undefined): { leaves: LeaveRequest[]; loading: boolean } {
+  const url = userId ? "/api/leaves" : null;
+  const { data, loading } = useFetch<{ leaves: LeaveRequest[] }>(url);
+  return { leaves: data?.leaves || [], loading };
+}
+
+export function useAllLeaves(): { leaves: LeaveRequest[]; loading: boolean } {
+  const { data, loading } = useFetch<{ leaves: LeaveRequest[] }>("/api/leaves?all=true");
+  return { leaves: data?.leaves || [], loading };
+}
+
+// ---------- Announcement hooks ----------
+
+export function useAnnouncements(): { announcements: Announcement[]; loading: boolean } {
+  const { data, loading } = useFetch<{ announcements: Announcement[] }>("/api/announcements");
+  return { announcements: data?.announcements || [], loading };
+}
+
+// ---------- Message hooks ----------
+
+export function useConversations(): { conversations: Conversation[]; loading: boolean } {
+  const { data, loading } = useFetch<{ conversations: Conversation[] }>("/api/messages?conversations=true");
+  return { conversations: data?.conversations || [], loading };
+}
+
+export function useConversation(partnerId: string | null): { messages: DirectMessage[]; partner: { id: string; name: string; email: string } | null; loading: boolean } {
+  const url = partnerId ? `/api/messages?with=${partnerId}` : null;
+  const { data, loading } = useFetch<{ messages: DirectMessage[]; partner: { id: string; name: string; email: string } }>(url);
+  return { messages: data?.messages || [], partner: data?.partner || null, loading };
 }

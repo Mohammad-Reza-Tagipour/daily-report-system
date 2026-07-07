@@ -10,6 +10,7 @@ import {
   ChevronRight, ChevronLeft, Plus, LogOut, Calendar, UserPlus,
   Loader2, Users, Save, FileText, AlertCircle, Bell, Send, ShieldCheck, Lock,
   Trash2, UserCheck, RotateCcw, Clock, UserX,
+  Palmtree, Megaphone, MessageSquare,
 } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { GlassButton } from "@/components/ui/glass-button";
@@ -22,9 +23,11 @@ import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import {
   useEmployees, useAllUsers, usePendingUsers, useDeletedUsers, useMonthEntries, useAllNotifications, useEntryCount,
+  useAllLeaves, useAnnouncements, useConversations, useConversation,
   upsertEntry, addUser, toggleUserRole, approveUser, restoreUser, deleteUser, createNotification,
+  resolveLeaveRequest, createAnnouncement, markAnnouncementRead, sendMessage,
 } from "@/lib/useStore";
-import { type User, type ReportEntry } from "@/lib/useStore";
+import { type User, type ReportEntry, type LeaveRequest, type Announcement as AnnouncementType, type Conversation, type DirectMessage } from "@/lib/useStore";
 import { isMainAdmin } from "@/lib/constants";
 import {
   toPersianDigits, persianMonthName, persianWeekdayOfJalaliDay, isFriday,
@@ -67,7 +70,7 @@ function DashboardContent({ user, onLogout, onAddEmployee, onRefreshUser }: {
 }) {
   const router = useRouter();
   const search = useSearchParams();
-  const [tab, setTab] = useState<"calendar" | "users" | "assign">("calendar");
+  const [tab, setTab] = useState<"calendar" | "users" | "assign" | "leaves" | "announcements" | "messages">("calendar");
 
   const monthParam = search.get("month");
   const month: JalaliMonthKey = monthParam && /^\d{4}-\d{2}$/.test(monthParam) ? monthParam : currentMonthKey();
@@ -78,15 +81,21 @@ function DashboardContent({ user, onLogout, onAddEmployee, onRefreshUser }: {
 
       <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 sm:px-6">
         {/* Tabs */}
-        <div className="mb-5 flex gap-2">
+        <div className="mb-5 flex flex-wrap gap-2">
           <TabButton active={tab === "calendar"} onClick={() => setTab("calendar")} icon={Calendar} label="تقویم" />
           <TabButton active={tab === "users"} onClick={() => setTab("users")} icon={Users} label="کاربران" />
           <TabButton active={tab === "assign"} onClick={() => setTab("assign")} icon={Bell} label="ارجاع وظیفه" />
+          <TabButton active={tab === "leaves"} onClick={() => setTab("leaves")} icon={Palmtree} label="مرخصی" />
+          <TabButton active={tab === "announcements"} onClick={() => setTab("announcements")} icon={Megaphone} label="اعلان‌ها" />
+          <TabButton active={tab === "messages"} onClick={() => setTab("messages")} icon={MessageSquare} label="پیام‌ها" />
         </div>
 
         {tab === "calendar" && <CalendarTab month={month} router={router} />}
         {tab === "users" && <UsersTab currentUserId={user.id} onToggleRole={async (id) => { const res = await toggleUserRole(id); if (!res.ok) { toast.error("خطا", { description: res.error }); } else { onRefreshUser(); } }} />}
         {tab === "assign" && <AssignTab adminId={user.id} />}
+        {tab === "leaves" && <LeavesAdminTab />}
+        {tab === "announcements" && <AnnouncementsAdminTab adminId={user.id} />}
+        {tab === "messages" && <MessagesTab currentUserId={user.id} currentUserName={user.name} />}
       </main>
 
       <footer className="mt-auto px-4 pb-5 pt-2 text-center text-xs text-muted-foreground">
@@ -737,5 +746,288 @@ function AddEmpDialog({ open, onOpenChange, onAdd }: {
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ==================== LEAVES ADMIN TAB ====================
+
+function LeavesAdminTab() {
+  const { leaves, loading } = useAllLeaves();
+  const pending = leaves.filter(l => l.status === "PENDING");
+  const resolved = leaves.filter(l => l.status !== "PENDING");
+
+  return (
+    <>
+      <div className="mb-5">
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">درخواست‌های مرخصی</h1>
+        <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+          <Palmtree className="h-3.5 w-3.5" /> {pending.length > 0 ? `${toPersianDigits(pending.length)} درخواست در انتظار` : "درخواست جدیدی وجود ندارد"}
+        </p>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+      ) : leaves.length === 0 ? (
+        <GlassCard className="p-12 text-center text-muted-foreground">هنوز درخواست مرخصی ثبت نشده است.</GlassCard>
+      ) : (
+        <div className="space-y-3">
+          {pending.length > 0 && (
+            <>
+              <h2 className="text-sm font-semibold text-amber-600">در انتظار تأیید</h2>
+              {pending.map(l => <LeaveRowAdmin key={l.id} leave={l} />)}
+            </>
+          )}
+          {resolved.length > 0 && (
+            <>
+              <h2 className="mt-6 text-sm font-semibold text-muted-foreground">تاریخچه</h2>
+              {resolved.map(l => <LeaveRowAdmin key={l.id} leave={l} />)}
+            </>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+function LeaveRowAdmin({ leave }: { leave: LeaveRequest }) {
+  const [loading, setLoading] = useState(false);
+  const approve = async () => { setLoading(true); try { const r = await resolveLeaveRequest(leave.id, "APPROVE"); if (!r.ok) toast.error(r.error); else toast.success("تأیید شد"); } finally { setLoading(false); } };
+  const reject = async () => { setLoading(true); try { const r = await resolveLeaveRequest(leave.id, "REJECT"); if (!r.ok) toast.error(r.error); else toast.success("رد شد"); } finally { setLoading(false); } };
+
+  const statusBadge = leave.status === "APPROVED"
+    ? <span className="rounded-lg bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-600">تأیید شد</span>
+    : leave.status === "REJECTED"
+    ? <span className="rounded-lg bg-rose-500/15 px-2 py-0.5 text-xs font-medium text-rose-600">رد شد</span>
+    : null;
+
+  return (
+    <GlassCard className="p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="font-semibold">{leave.user?.name || "—"}</p>
+          <p className="text-[11px] text-muted-foreground" dir="ltr">{leave.user?.email}</p>
+          <p className="mt-2 text-sm"><span className="text-muted-foreground">از </span>{leave.startDate} <span className="text-muted-foreground">تا </span>{leave.endDate}</p>
+          <p className="mt-1 text-sm text-muted-foreground">دلیل: {leave.reason}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {statusBadge}
+          {leave.status === "PENDING" && (
+            <>
+              <button onClick={approve} disabled={loading} className="flex items-center gap-1 rounded-xl bg-emerald-500/15 px-3 py-1.5 text-xs font-medium text-emerald-600 hover:bg-emerald-500/25">
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserCheck className="h-4 w-4" />} تأیید
+              </button>
+              <button onClick={reject} disabled={loading} className="rounded-xl border border-rose-500/30 px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-500/10">
+                رد
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </GlassCard>
+  );
+}
+
+// ==================== ANNOUNCEMENTS ADMIN TAB ====================
+
+function AnnouncementsAdminTab({ adminId: _adminId }: { adminId: string }) {
+  const { announcements } = useAnnouncements();
+  const { users } = useAllUsers();
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [sending, setSending] = useState(false);
+  const totalEmployees = users.filter(u => u.role === "EMPLOYEE").length;
+
+  const send = async () => {
+    if (!title.trim() || !body.trim()) { toast.error("عنوان و متن الزامی است"); return; }
+    setSending(true);
+    try {
+      const res = await createAnnouncement({ title, body });
+      if (!res.ok) { toast.error("خطا", { description: res.error }); return; }
+      toast.success("اعلان ارسال شد");
+      setTitle(""); setBody("");
+    } finally { setSending(false); }
+  };
+
+  return (
+    <>
+      <div className="mb-5">
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">اعلان‌های گروهی</h1>
+        <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+          <Megaphone className="h-3.5 w-3.5" /> پیام به همه‌ی کارمندان
+        </p>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <GlassCard className="p-5">
+          <h2 className="mb-4 text-sm font-semibold">اعلان جدید</h2>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>عنوان</Label>
+              <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="مثلاً: جلسه فردا ساعت ۱۰" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>متن</Label>
+              <Textarea value={body} onChange={e => setBody(e.target.value)} rows={5} placeholder="متن اعلان..." />
+            </div>
+            <GlassButton variant="primary" size="lg" disabled={sending} onClick={send} className="w-full">
+              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Megaphone className="h-4 w-4" />}
+              ارسال به همه
+            </GlassButton>
+          </div>
+        </GlassCard>
+
+        <GlassCard className="p-5">
+          <h2 className="mb-4 text-sm font-semibold">اعلان‌های ارسال‌شده</h2>
+          {announcements.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">هنوز اعلانی ارسال نشده است.</p>
+          ) : (
+            <div className="scroll-area max-h-[500px] space-y-3 overflow-y-auto">
+              {announcements.map(a => (
+                <div key={a.id} className="rounded-xl border border-border/60 bg-background/40 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium">{a.title}</p>
+                    <span className="shrink-0 rounded bg-foreground/5 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                      {toPersianDigits(a.readCount)}/{toPersianDigits(totalEmployees)} خوانده‌اند
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{a.body}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </GlassCard>
+      </div>
+    </>
+  );
+}
+
+// ==================== MESSAGES TAB ====================
+
+function MessagesTab({ currentUserId, currentUserName: _currentUserName }: { currentUserId: string; currentUserName: string }) {
+  const { conversations, loading: convLoading } = useConversations();
+  const [selectedPartner, setSelectedPartner] = useState<string | null>(null);
+  const { messages, partner, loading: msgLoading } = useConversation(selectedPartner);
+  const [newMsg, setNewMsg] = useState("");
+  const [sending, setSending] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const send = async () => {
+    if (!newMsg.trim() || !selectedPartner) return;
+    setSending(true);
+    try {
+      const res = await sendMessage(selectedPartner, newMsg);
+      if (!res.ok) { toast.error("خطا", { description: res.error }); return; }
+      setNewMsg("");
+    } finally { setSending(false); }
+  };
+
+  return (
+    <>
+      <div className="mb-5">
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">پیام‌رسان</h1>
+        <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+          <MessageSquare className="h-3.5 w-3.5" /> گفتگوی مستقیم با کارمندان
+        </p>
+      </div>
+
+      <GlassCard className="overflow-hidden p-0">
+        <div className="grid h-[600px] grid-cols-1 md:grid-cols-3">
+          {/* Sidebar: conversation list */}
+          <div className={`border-l border-border/40 ${selectedPartner ? "hidden md:block" : ""}`}>
+            <div className="border-b border-border/40 px-4 py-3">
+              <h3 className="text-sm font-semibold">گفتگوها</h3>
+            </div>
+            <div className="scroll-area h-[calc(600px-49px)] overflow-y-auto">
+              {convLoading ? (
+                <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+              ) : conversations.length === 0 ? (
+                <p className="p-4 text-center text-xs text-muted-foreground">کاربری یافت نشد</p>
+              ) : (
+                conversations.map(c => (
+                  <button
+                    key={c.id}
+                    onClick={() => setSelectedPartner(c.id)}
+                    className={`flex w-full flex-col items-start gap-1 border-b border-border/20 p-3 text-right transition hover:bg-foreground/5 ${selectedPartner === c.id ? "bg-primary/10" : ""}`}
+                  >
+                    <div className="flex w-full items-center justify-between">
+                      <span className="text-sm font-medium">{c.name}</span>
+                      {c.unreadCount > 0 && (
+                        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-bold text-white">
+                          {toPersianDigits(c.unreadCount)}
+                        </span>
+                      )}
+                    </div>
+                    {c.lastMessage && (
+                      <span className="line-clamp-1 text-xs text-muted-foreground">{c.lastMessage}</span>
+                    )}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Chat area */}
+          <div className={`col-span-2 flex flex-col ${selectedPartner ? "" : "hidden md:flex"}`}>
+            {selectedPartner ? (
+              <>
+                <div className="flex items-center justify-between border-b border-border/40 px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setSelectedPartner(null)} className="text-muted-foreground hover:text-foreground md:hidden">
+                      ←
+                    </button>
+                    <span className="text-sm font-semibold">{partner?.name || "..."}</span>
+                  </div>
+                </div>
+
+                <div className="scroll-area flex-1 space-y-2 overflow-y-auto p-4">
+                  {msgLoading ? (
+                    <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+                  ) : messages.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">شروع گفتگو...</p>
+                  ) : (
+                    messages.map(m => (
+                      <div key={m.id} className={`flex ${m.senderId === currentUserId ? "justify-start" : "justify-end"}`}>
+                        <div className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${m.senderId === currentUserId ? "bg-primary text-primary-foreground" : "glass glass-border"}`}>
+                          {m.body}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                  <div ref={messagesEndRef} />
+                </div>
+
+                <div className="flex items-center gap-2 border-t border-border/40 p-3">
+                  <input
+                    value={newMsg}
+                    onChange={e => setNewMsg(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") send(); }}
+                    placeholder="پیام بنویسید..."
+                    className="h-10 flex-1 rounded-xl border border-border bg-background/50 px-3 text-sm outline-none focus:border-primary"
+                  />
+                  <button
+                    onClick={send}
+                    disabled={sending || !newMsg.trim()}
+                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-1 items-center justify-center text-muted-foreground">
+                <div className="text-center">
+                  <MessageSquare className="mx-auto mb-2 h-8 w-8 opacity-50" />
+                  <p className="text-sm">یک گفتگو انتخاب کنید</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </GlassCard>
+    </>
   );
 }
