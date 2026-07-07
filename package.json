@@ -10,6 +10,7 @@
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "tsx scripts/seed.ts",
+    "db:fix-status": "tsx scripts/fix-status.ts",
     "db:studio": "prisma studio"
   },
   "dependencies": {

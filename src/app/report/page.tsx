@@ -58,8 +58,8 @@ function ReportContent({ user, forbidden, onLogout }: {
   const days = daysOfMonth(month);
   const monthLabel = `${persianMonthName(jm)} ${toPersianDigits(jy)}`;
 
-  const entries = useUserEntries(user.id, month);
-  const notifications = useUserNotifications(user.id);
+  const { entries, loading: entriesLoading } = useUserEntries(user.id, month);
+  const { notifications } = useUserNotifications(user.id);
 
   useEffect(() => { /* data fetched from API */ }, [month]);
 

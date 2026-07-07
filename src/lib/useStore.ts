@@ -1,13 +1,14 @@
 // lib/useStore.ts — React hooks for reading from the API (backend).
-// Uses fetch + simple state with periodic refresh.
+// FIXED: re-fetches on bump(), adds loading/error states, optimizes queries.
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 export type User = {
   id: string;
   name: string;
   email: string;
   role: string;
+  status?: string;
   entryCount?: number;
 };
 
@@ -35,8 +36,6 @@ export type Notification = {
 };
 
 // ---------- Global refresh mechanism ----------
-// Any write call bumps the version, which triggers all hooks to re-fetch.
-
 const subscribers = new Set<() => void>();
 let version = 0;
 
@@ -45,19 +44,18 @@ function bump() {
   subscribers.forEach((fn) => fn());
 }
 
-// Hook that re-renders when bump() is called.
-function useBump() {
-  const [, setV] = useState(0);
+// Hook that re-renders when bump() is called and returns current version.
+function useBump(): number {
+  const [v, setV] = useState(version);
   useEffect(() => {
-    const fn = () => setV((v) => v + 1);
+    const fn = () => setV(version);
     subscribers.add(fn);
     return () => { subscribers.delete(fn); };
   }, []);
-  return version;
+  return v;
 }
 
 // ---------- Fetch helper ----------
-
 async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, options);
   const data = await res.json();
@@ -174,117 +172,95 @@ export async function markNotificationRead(notifId: string): Promise<void> {
   bump();
 }
 
-// ---------- Read hooks ----------
+// ---------- Read hooks (with loading states) ----------
 
-/* eslint-disable react-hooks/set-state-in-effect */
+// Generic hook that fetches data, re-fetches on bump(), and tracks loading state.
+function useFetch<T>(
+  url: string | null,
+  deps: unknown[] = []
+): { data: T | null; loading: boolean; error: string | null } {
+  const ver = useBump(); // re-render on bump
+  const [data, setData] = useState<T | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const reqIdRef = useRef(0);
 
-// Fetch + cache pattern: each hook fetches on mount and when version changes.
-function useApiFetch<T>(url: string | null): T[] | null {
-  useBump();
-  const [data, setData] = useState<T[] | null>(null);
-
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (!url) { setData([]); return; }
-    let cancelled = false;
-    apiFetch<{ entries?: T[]; users?: T[]; notifications?: T[] }>(url)
+    if (!url) { setData(null); setLoading(false); return; }
+
+    const reqId = ++reqIdRef.current;
+    setLoading(true);
+    setError(null);
+
+    apiFetch<T>(url)
       .then((d) => {
-        if (cancelled) return;
-        const arr = d.entries || d.users || d.notifications || [];
-        setData(arr);
+        if (reqId !== reqIdRef.current) return; // stale request
+        setData(d);
+        setLoading(false);
       })
-      .catch(() => { if (!cancelled) setData([]); });
-    return () => { cancelled = true; };
-  }, [url]);
+      .catch((e) => {
+        if (reqId !== reqIdRef.current) return;
+        setError((e as Error).message);
+        setLoading(false);
+      });
+  }, [url, ver, ...deps]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
-  return data;
+  return { data, loading, error };
 }
 
-export function useEmployees(): User[] {
-  const users = useApiFetch<User>("/api/users");
-  return (users || []).filter((u) => u.role === "EMPLOYEE");
+// ---------- User hooks ----------
+
+export function useEmployees(): { users: User[]; loading: boolean } {
+  const { data, loading } = useFetch<{ users: User[] }>("/api/users?status=APPROVED");
+  return { users: (data?.users || []).filter((u) => u.role === "EMPLOYEE"), loading };
 }
 
-export function useAllUsers(): User[] {
-  const users = useApiFetch<User>("/api/users?status=APPROVED");
-  return users || [];
+export function useAllUsers(): { users: User[]; loading: boolean } {
+  const { data, loading } = useFetch<{ users: User[] }>("/api/users?status=APPROVED");
+  return { users: data?.users || [], loading };
 }
 
-export function usePendingUsers(): User[] {
-  const users = useApiFetch<User>("/api/users?status=PENDING");
-  return users || [];
+export function usePendingUsers(): { users: User[]; loading: boolean } {
+  const { data, loading } = useFetch<{ users: User[] }>("/api/users?status=PENDING");
+  return { users: data?.users || [], loading };
 }
 
-export function useDeletedUsers(): User[] {
-  const users = useApiFetch<User>("/api/users?status=DELETED");
-  return users || [];
+export function useDeletedUsers(): { users: User[]; loading: boolean } {
+  const { data, loading } = useFetch<{ users: User[] }>("/api/users?status=DELETED");
+  return { users: data?.users || [], loading };
 }
 
-export function useMonthEntries(month: string): ReportEntry[] {
-  // Admin sees all entries for the month (we fetch per-employee and merge).
-  // For simplicity, fetch all users' entries via a special endpoint.
-  const [entries, setEntries] = useState<ReportEntry[]>([]);
-  useBump();
+// ---------- Entry hooks ----------
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch<{ entries: ReportEntry[] }>(`/api/entries?month=${month}&all=true`)
-      .then((d) => { if (!cancelled) setEntries(d.entries); })
-      .catch(() => { if (!cancelled) setEntries([]); });
-    return () => { cancelled = true; };
-  }, [month]);
-
-  return entries;
+export function useMonthEntries(month: string): { entries: ReportEntry[]; loading: boolean } {
+  const { data, loading } = useFetch<{ entries: ReportEntry[] }>(`/api/entries?month=${month}&all=true`);
+  return { entries: data?.entries || [], loading };
 }
 
-export function useUserEntries(userId: string | undefined, month: string): ReportEntry[] {
-  const [entries, setEntries] = useState<ReportEntry[]>([]);
-  useBump();
-
-  useEffect(() => {
-    if (!userId) { setEntries([]); return; }
-    let cancelled = false;
-    apiFetch<{ entries: ReportEntry[] }>(`/api/entries?month=${month}&userId=${userId}`)
-      .then((d) => { if (!cancelled) setEntries(d.entries); })
-      .catch(() => { if (!cancelled) setEntries([]); });
-    return () => { cancelled = true; };
-  }, [userId, month]);
-
-  return entries;
+export function useUserEntries(userId: string | undefined, month: string): { entries: ReportEntry[]; loading: boolean } {
+  const url = userId ? `/api/entries?month=${month}&userId=${userId}` : null;
+  const { data, loading } = useFetch<{ entries: ReportEntry[] }>(url);
+  return { entries: data?.entries || [], loading };
 }
 
-export function useUserNotifications(userId: string | undefined): Notification[] {
-  const [notifs, setNotifs] = useState<Notification[]>([]);
-  useBump();
+// ---------- Notification hooks ----------
 
-  useEffect(() => {
-    if (!userId) { setNotifs([]); return; }
-    let cancelled = false;
-    apiFetch<{ notifications: Notification[] }>("/api/notifications")
-      .then((d) => { if (!cancelled) setNotifs(d.notifications); })
-      .catch(() => { if (!cancelled) setNotifs([]); });
-    return () => { cancelled = true; };
-  }, [userId]);
-
-  return notifs;
+export function useUserNotifications(userId: string | undefined): { notifications: Notification[]; loading: boolean } {
+  const url = userId ? "/api/notifications" : null;
+  const { data, loading } = useFetch<{ notifications: Notification[] }>(url);
+  return { notifications: data?.notifications || [], loading };
 }
 
-export function useAllNotifications(): Notification[] {
-  const [notifs, setNotifs] = useState<Notification[]>([]);
-  useBump();
-
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch<{ notifications: Notification[] }>("/api/notifications?all=true")
-      .then((d) => { if (!cancelled) setNotifs(d.notifications); })
-      .catch(() => { if (!cancelled) setNotifs([]); });
-    return () => { cancelled = true; };
-  }, []);
-
-  return notifs;
+export function useAllNotifications(): { notifications: Notification[]; loading: boolean } {
+  const { data, loading } = useFetch<{ notifications: Notification[] }>("/api/notifications?all=true");
+  return { notifications: data?.notifications || [], loading };
 }
+
+// ---------- Entry count hook (optimized — uses cached users list) ----------
 
 export function useEntryCount(userId: string): number {
-  const users = useApiFetch<User>("/api/users");
-  const u = (users || []).find((x) => x.id === userId);
-  return u?.entryCount || 0;
+  const { users } = useAllUsers();
+  return users.find((x) => x.id === userId)?.entryCount || 0;
 }

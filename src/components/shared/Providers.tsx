@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/context/ThemeContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { RTLProvider } from "@/components/shared/RTLProvider";
 import { LoadingBar } from "@/components/shared/LoadingBar";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
@@ -13,8 +14,10 @@ export function Providers({ children }: { children: ReactNode }) {
       <ThemeProvider>
         <AuthProvider>
           <RTLProvider>
-            <LoadingBar />
-            {children}
+            <ErrorBoundary>
+              <LoadingBar />
+              {children}
+            </ErrorBoundary>
           </RTLProvider>
         </AuthProvider>
       </ThemeProvider>

@@ -104,8 +104,8 @@ function CalendarTab({ month, router }: { month: JalaliMonthKey; router: ReturnT
   const { jy, jm } = parseMonthKey(month);
   const days = daysOfMonth(month);
   const monthLabel = `${persianMonthName(jm)} ${toPersianDigits(jy)}`;
-  const employees = useEmployees();
-  const entries = useMonthEntries(month);
+  const { users: employees, loading: employeesLoading } = useEmployees();
+  const { entries, loading: entriesLoading } = useMonthEntries(month);
 
   useEffect(() => { /* data is fetched from API — no seeding needed */ }, [month]);
 
@@ -208,9 +208,9 @@ function CalendarTab({ month, router }: { month: JalaliMonthKey; router: ReturnT
 // ---------- Users tab (admin manages roles) ----------
 
 function UsersTab({ currentUserId, onToggleRole }: { currentUserId: string; onToggleRole: (userId: string) => void }) {
-  const allUsers = useAllUsers();
-  const pendingUsers = usePendingUsers();
-  const deletedUsers = useDeletedUsers();
+  const { users: allUsers } = useAllUsers();
+  const { users: pendingUsers } = usePendingUsers();
+  const { users: deletedUsers } = useDeletedUsers();
   const currentUser = allUsers.find(u => u.id === currentUserId);
   const viewerIsMainAdmin = currentUser ? isMainAdmin(currentUser.email) : false;
 
@@ -437,9 +437,9 @@ function UserRow({ user, isSelf, viewerIsMainAdmin, onToggle, onDelete }: {
 // ---------- Assign Task tab (admin sends notifications) ----------
 
 function AssignTab({ adminId }: { adminId: string }) {
-  const employees = useEmployees();
-  const allUsers = useAllUsers();
-  const allNotifs = useAllNotifications();
+  const { users: employees } = useEmployees();
+  const { users: allUsers } = useAllUsers();
+  const { notifications: allNotifs } = useAllNotifications();
   const [userId, setUserId] = useState("");
   const [title, setTitle] = useState("");
   const [details, setDetails] = useState("");
