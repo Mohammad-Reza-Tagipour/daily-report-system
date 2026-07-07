@@ -9,6 +9,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+
 model User {
   id          String   @id @default(cuid())
   name        String
@@ -20,13 +21,20 @@ model User {
   notifications Notification[] @relation("notifRecipient")
   sentNotifs  Notification[] @relation("notifSender")
   createdAt   DateTime @default(now())
+
+  // Relations for new features
+  leaves        LeaveRequest[]
+  announcements Announcement[]
+  announcementReads AnnouncementRead[]
+  sentMessages  DirectMessage[] @relation("msgSender")
+  receivedMessages DirectMessage[] @relation("msgRecipient")
 }
 
 model ReportEntry {
   id        String   @id @default(cuid())
   userId    String
-  month     String   // "1405-04"
-  day       Int      // 1..31
+  month     String
+  day       Int
   enterTime String?
   leaveTime String?
   task      String?
@@ -40,8 +48,8 @@ model ReportEntry {
 
 model Notification {
   id          String   @id @default(cuid())
-  userId      String   // recipient (employee)
-  fromAdminId String   // sender (admin)
+  userId      String
+  fromAdminId String
   title       String
   details     String
   dueDate     String?
@@ -49,4 +57,60 @@ model Notification {
   createdAt   DateTime @default(now())
   recipient   User     @relation("notifRecipient", fields: [userId], references: [id], onDelete: Cascade)
   sender      User     @relation("notifSender", fields: [fromAdminId], references: [id], onDelete: Cascade)
+}
+
+// ---------- Leave Requests (مرخصی) ----------
+model LeaveRequest {
+  id        String   @id @default(cuid())
+  userId    String
+  startDate String   // "1405-04-15" (Jalali)
+  endDate   String
+  reason    String
+  status    String   @default("PENDING") // PENDING | APPROVED | REJECTED
+  adminNote String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}
+
+// ---------- Group Announcements (اعلان‌های گروهی) ----------
+model Announcement {
+  id        String   @id @default(cuid())
+  fromAdminId String
+  title     String
+  body      String
+  createdAt DateTime @default(now())
+  admin     User     @relation(fields: [fromAdminId], references: [id], onDelete: Cascade)
+  reads     AnnouncementRead[]
+
+  @@index([fromAdminId])
+}
+
+model AnnouncementRead {
+  id              String   @id @default(cuid())
+  announcementId  String
+  userId          String
+  readAt          DateTime @default(now())
+  announcement    Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId])
+}
+
+// ---------- Direct Messages (پیام‌رسان) ----------
+model DirectMessage {
+  id          String   @id @default(cuid())
+  senderId    String
+  recipientId String
+  body        String
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  sender      User     @relation("msgSender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient   User     @relation("msgRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, recipientId])
+  @@index([recipientId, senderId])
 }
