@@ -9,17 +9,17 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  password  String
-  role      String   @default("EMPLOYEE") // ADMIN | EMPLOYEE
+  id          String   @id @default(cuid())
+  name        String
+  email       String   @unique
+  password    String
+  role        String   @default("EMPLOYEE") // ADMIN | EMPLOYEE
+  status      String   @default("PENDING")  // PENDING | APPROVED | DELETED
   entries     ReportEntry[]
   notifications Notification[] @relation("notifRecipient")
   sentNotifs  Notification[] @relation("notifSender")
-  createdAt DateTime @default(now())
+  createdAt   DateTime @default(now())
 }
-
 model ReportEntry {
   id        String   @id @default(cuid())
   userId    String
